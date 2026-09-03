@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Jewellery Earring Recommender — find the perfect matching earrings for your necklace using visual AI matching.">
+  <title>Jewellery Earring Recommender</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ===== CSS RESET & ROOT ===== */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: rgba(255, 255, 255, 0.04);
+      --bg-card-hover: rgba(255, 255, 255, 0.07);
+      --bg-glass: rgba(255, 255, 255, 0.06);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-gold: rgba(212, 175, 55, 0.4);
+
+      --gold: #d4af37;
+      --gold-light: #f0d780;
+      --gold-dark: #a0842a;
+      --gold-glow: rgba(212, 175, 55, 0.15);
+
+      --text-primary: #f5f0e8;
+      --text-secondary: rgba(245, 240, 232, 0.6);
+      --text-muted: rgba(245, 240, 232, 0.35);
+
+      --accent-emerald: #50c878;
+      --accent-ruby: #e0115f;
+      --accent-sapphire: #6fa8dc;
+      --accent-pearl: #f5f0e0;
+
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+
+      --shadow-card: 0 4px 24px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.2);
+      --shadow-glow: 0 0 40px rgba(212, 175, 55, 0.1);
+
+      --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-smooth: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* ===== AMBIENT BACKGROUND ===== */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background:
+        radial-gradient(ellipse at 20% 20%, rgba(212, 175, 55, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(80, 200, 120, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(224, 17, 95, 0.02) 0%, transparent 40%);
+      animation: ambientDrift 20s ease-in-out infinite alternate;
+      pointer-events: none;
+      z-index: 0;
+    }
+    @keyframes ambientDrift {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      100% { transform: translate(-30px, 20px) rotate(3deg); }
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 48px 24px 32px;
+    }
+    .header__icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+      display: block;
+      animation: sparkle 3s ease-in-out infinite;
+    }
+    @keyframes sparkle {
+      0%, 100% { opacity: 0.8; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+    .header__title {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--gold-light), var(--gold), var(--gold-dark));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.5px;
+    }
+    .header__subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      font-weight: 300;
+      letter-spacing: 0.3px;
+    }
+
+    /* ===== MAIN LAYOUT ===== */
+    .main {
+      position: relative;
+      z-index: 10;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+
+    @media (max-width: 960px) {
+      .main {
+        grid-template-columns: 1fr;
+        max-width: 600px;
+      }
+    }
+
+    /* ===== SECTION TITLES ===== */
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title__icon {
+      font-size: 18px;
+    }
+    .section-title__line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border-gold), transparent);
+    }
+
+    /* ===== NECKLACE PANEL ===== */
+    .necklace-panel {
+      position: sticky;
+      top: 24px;
+    }
+
+    .necklace-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .necklace-card {
+      position: relative;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      border: 2px solid var(--border-subtle);
+      background: var(--bg-card);
+      transition: all var(--transition-smooth);
+      aspect-ratio: 1;
+    }
+    .necklace-card:hover {
+      border-color: rgba(212, 175, 55, 0.3);
+      background: var(--bg-card-hover);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-glow);
+    }
+    .necklace-card.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.3), var(--shadow-glow);
+    }
+    .necklace-card.selected::after {
+      content: '✓';
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 26px; height: 26px;
+      background: var(--gold);
+      color: var(--bg-primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 5;
+      animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes popIn {
+      0% { transform: scale(0); }
+      100% { transform: scale(1); }
+    }
+    .necklace-card__img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform var(--transition-smooth);
+    }
+    .necklace-card:hover .necklace-card__img {
+      transform: scale(1.05);
+    }
+    .necklace-card__label {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 8px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.7));
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-primary);
+    }
+
+    /* ===== RESULTS PANEL ===== */
+    .results-panel {
+      min-height: 400px;
+    }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      text-align: center;
+      background: var(--bg-card);
+      border: 1px dashed var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 40px;
+    }
+    .empty-state__icon {
+      font-size: 56px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .empty-state__text {
+      font-size: 16px;
+      color: var(--text-secondary);
+      font-weight: 300;
+    }
+    .empty-state__hint {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* ===== LOADING STATE ===== */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      gap: 20px;
+    }
+    .loading__spinner {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border-subtle);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading__text {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 300;
+    }
+
+    /* ===== EARRING RESULTS ===== */
+    .results-list {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .earring-card {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 24px;
+      padding: 18px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all var(--transition-smooth);
+      animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+    .earring-card:nth-child(1) { animation-delay: 0.05s; }
+    .earring-card:nth-child(2) { animation-delay: 0.12s; }
+    .earring-card:nth-child(3) { animation-delay: 0.19s; }
+    .earring-card:nth-child(4) { animation-delay: 0.26s; }
+    .earring-card:nth-child(5) { animation-delay: 0.33s; }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .earring-card:hover {
+      border-color: rgba(212, 175, 55, 0.25);
+      background: var(--bg-card-hover);
+      box-shadow: var(--shadow-card);
+      transform: translateY(-2px);
+    }
+
+    /* Rank badge */
+    .earring-card__rank {
+      position: absolute;
+      top: -8px; left: -8px;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 5;
+    }
+    .earring-card:nth-child(1) .earring-card__rank {
+      background: linear-gradient(135deg, var(--gold-light), var(--gold));
+      color: var(--bg-primary);
+      box-shadow: 0 2px 12px rgba(212, 175, 55, 0.4);
+    }
+    .earring-card:nth-child(2) .earring-card__rank {
+      background: linear-gradient(135deg, #e0e0e0, #b8b8b8);
+      color: var(--bg-primary);
+    }
+    .earring-card:nth-child(3) .earring-card__rank {
+      background: linear-gradient(135deg, #cd7f32, #a0622e);
+      color: #fff;
+    }
+    .earring-card:nth-child(n+4) .earring-card__rank {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+    }
+
+    .earring-card__img-wrap {
+      position: relative;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      aspect-ratio: 1;
+      background: var(--bg-secondary);
+    }
+    .earring-card__img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform var(--transition-smooth);
+    }
+    .earring-card:hover .earring-card__img {
+      transform: scale(1.06);
+    }
+
+    .earring-card__info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    .earring-card__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .earring-card__name {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    /* Match score badge */
+    .match-score {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .match-score.high {
+      background: linear-gradient(135deg, rgba(80, 200, 120, 0.15), rgba(80, 200, 120, 0.05));
+      color: var(--accent-emerald);
+      border: 1px solid rgba(80, 200, 120, 0.25);
+    }
+    .match-score.medium {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(212, 175, 55, 0.05));
+      color: var(--gold-light);
+      border: 1px solid rgba(212, 175, 55, 0.25);
+    }
+    .match-score.low {
+      background: linear-gradient(135deg, rgba(245, 240, 232, 0.08), rgba(245, 240, 232, 0.03));
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Breakdown bars */
+    .breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .breakdown__row {
+      display: grid;
+      grid-template-columns: 110px 1fr 40px;
+      align-items: center;
+      gap: 10px;
+    }
+    .breakdown__label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 400;
+      text-transform: capitalize;
+    }
+    .breakdown__bar-bg {
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .breakdown__bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      min-width: 2px;
+    }
+    .breakdown__bar-fill.colour_hist {
+      background: linear-gradient(90deg, #d4af37, #f0d780);
+    }
+    .breakdown__bar-fill.dominant_colours {
+      background: linear-gradient(90deg, #50c878, #7deba3);
+    }
+    .breakdown__bar-fill.texture {
+      background: linear-gradient(90deg, #6fa8dc, #a0c8f0);
+    }
+    .breakdown__bar-fill.structure {
+      background: linear-gradient(90deg, #e0115f, #f06090);
+    }
+    .breakdown__val {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 32px 24px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* ===== UTILITY ===== */
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="header" id="page-header">
+    <span class="header__icon" aria-hidden="true">💎</span>
+    <h1 class="header__title">Jewellery Earring Recommender</h1>
+    <p class="header__subtitle">Select a necklace to discover perfectly matching earrings</p>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="main" id="main-content">
+    <!-- LEFT: Necklace Selection -->
+    <section class="necklace-panel" id="necklace-panel" aria-label="Select a Necklace">
+      <div class="section-title">
+        <span class="section-title__icon" aria-hidden="true">📿</span>
+        <span>Select a Necklace</span>
+        <span class="section-title__line"></span>
+      </div>
+      <div class="necklace-grid" id="necklace-grid" role="radiogroup" aria-label="Necklace options">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- RIGHT: Recommendations -->
+    <section class="results-panel" id="results-panel" aria-label="Earring Recommendations">
+      <div class="section-title">
+        <span class="section-title__icon" aria-hidden="true">✨</span>
+        <span>Recommended Earrings</span>
+        <span class="section-title__line"></span>
+      </div>
+      <div id="results-container">
+        <div class="empty-state" id="empty-state">
+          <span class="empty-state__icon" aria-hidden="true">👈</span>
+          <p class="empty-state__text">Select a necklace to get started</p>
+          <p class="empty-state__hint">Click on any necklace image to find matching earrings</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    Visual similarity matching powered by Deep Learning (ResNet50 semantic embeddings)
+  </footer>
+
+  <script>
+    // ===== STATE =====
+    let selectedNecklaceId = null;
+
+    // ===== HELPERS =====
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    function scoreClass(score) {
+      if (score >= 0.70) return 'high';
+      if (score >= 0.50) return 'medium';
+      return 'low';
+    }
+
+
+
+    // ===== RENDER NECKLACES =====
+    async function loadNecklaces() {
+      const res = await fetch('/necklaces');
+      const necklaces = await res.json();
+      const grid = $('#necklace-grid');
+
+      necklaces.forEach((n) => {
+        const card = document.createElement('div');
+        card.className = 'necklace-card';
+        card.id = `necklace-${n.id}`;
+        card.setAttribute('role', 'radio');
+        card.setAttribute('aria-checked', 'false');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', `Necklace ${n.id}`);
+        card.innerHTML = `
+          <img class="necklace-card__img" src="/images/${n.image_file}" alt="Necklace ${n.id}" loading="lazy">
+          <div class="necklace-card__label">${n.id}</div>
+        `;
+        card.addEventListener('click', () => selectNecklace(n.id));
+        card.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectNecklace(n.id);
+          }
+        });
+        grid.appendChild(card);
+      });
+    }
+
+    // ===== SELECT NECKLACE & FETCH RECOMMENDATIONS =====
+    async function selectNecklace(id) {
+      if (selectedNecklaceId === id) return;
+      selectedNecklaceId = id;
+
+      // Update selection UI
+      $$('.necklace-card').forEach((c) => {
+        const isSelected = c.id === `necklace-${id}`;
+        c.classList.toggle('selected', isSelected);
+        c.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+      });
+
+      // Show loading
+      const container = $('#results-container');
+      container.innerHTML = `
+        <div class="loading" id="loading-state">
+          <div class="loading__spinner"></div>
+          <p class="loading__text">Finding matching earrings…</p>
+        </div>
+      `;
+
+      try {
+        const res = await fetch('/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ necklace_id: id, top_k: 5 }),
+        });
+        const data = await res.json();
+        renderRecommendations(data.recommendations);
+      } catch (err) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-state__icon">⚠️</span>
+            <p class="empty-state__text">Something went wrong</p>
+            <p class="empty-state__hint">${err.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    // ===== RENDER RECOMMENDATIONS =====
+    function renderRecommendations(recs) {
+      const container = $('#results-container');
+      if (!recs || recs.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-state__icon">🤔</span>
+            <p class="empty-state__text">No matching earrings found</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '<div class="results-list">';
+      recs.forEach((rec, idx) => {
+        const pct = Math.round(rec.total_score); // Already a percentage in the new backend
+        const cls = scoreClass(rec.total_score / 100);
+
+        html += `
+          <article class="earring-card" id="earring-result-${rec.id}" aria-label="Earring ${rec.id} — ${pct}% match">
+            <div class="earring-card__img-wrap">
+              <div class="earring-card__rank">${idx + 1}</div>
+              <img class="earring-card__img" src="/images/${rec.image_file}" alt="Earring ${rec.id}" loading="lazy">
+            </div>
+            <div class="earring-card__info">
+              <div class="earring-card__header">
+                <span class="earring-card__name">Earring ${rec.id}</span>
+                <span class="match-score ${cls}">${pct}% Semantic Match</span>
+              </div>
+              <div class="breakdown">
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem; line-height: 1.4;">
+                  This match score is generated by a ResNet50 deep learning model that understands the high-level semantic patterns, shapes, and structural design of the jewellery.
+                </p>
+              </div>
+            </div>
+          </article>
+        `;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    // ===== INIT =====
+    loadNecklaces();
+  </script>
+</body>
+</html>
