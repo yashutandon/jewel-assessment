@@ -14,10 +14,13 @@ import sys
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Tuple
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
+import uuid
+import shutil
+import os
 
 from config import settings
 from feature_extractor import extract_features, compute_similarity
@@ -215,10 +218,49 @@ async def recommend(req: RecommendRequest, request: Request):
         recommendations=[EarringMatch(**m) for m in top],
     )
 
-@app.get("/images/{filename}")
+@app.post("/upload-necklace")
+async def upload_necklace(request: Request, file: UploadFile = File(...)):
+    """Upload a custom target image and extract features for it."""
+    upload_dir = settings.images_dir / "uploads"
+    upload_dir.mkdir(exist_ok=True)
+    
+    # Safe filename
+    ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+    new_filename = f"upload_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = upload_dir / new_filename
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    try:
+        features = extract_features(str(filepath))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process image: {e}")
+        
+    new_id = f"custom_{uuid.uuid4().hex[:4]}"
+    relative_filename = f"uploads/{new_filename}"
+    
+    new_necklace = {
+        "id": new_id,
+        "image_file": relative_filename,
+        "product_type": "Necklace"
+    }
+    
+    request.app.state.necklaces.insert(0, new_necklace)
+    request.app.state.necklace_features[new_id] = features
+    
+    return new_necklace
+
+@app.get("/images/{filename:path}")
 async def serve_image(filename: str):
     """Serve a jewellery image file."""
     filepath = settings.images_dir / filename
+    # Security check to prevent path traversal
+    try:
+        filepath.resolve().relative_to(settings.images_dir.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
     if not filepath.is_file():
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(filepath)

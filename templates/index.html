@@ -150,6 +150,26 @@
       height: 1px;
       background: linear-gradient(90deg, var(--border-gold), transparent);
     }
+    .upload-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: linear-gradient(135deg, var(--gold-light), var(--gold), var(--gold-dark));
+      color: var(--bg-primary);
+      border: none;
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all var(--transition-smooth);
+      margin-left: auto;
+    }
+    .upload-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+    }
 
     /* ===== NECKLACE PANEL ===== */
     .necklace-panel {
@@ -502,6 +522,10 @@
         <span class="section-title__icon" aria-hidden="true">📿</span>
         <span>Select a Necklace</span>
         <span class="section-title__line"></span>
+        <label class="upload-btn">
+          <input type="file" id="upload-input" accept="image/*" style="display: none;">
+          Upload Image
+        </label>
       </div>
       <div class="necklace-grid" id="necklace-grid" role="radiogroup" aria-label="Necklace options">
         <!-- Populated by JS -->
@@ -574,6 +598,71 @@
         grid.appendChild(card);
       });
     }
+
+    // ===== UPLOAD NECKLACE =====
+    $('#upload-input').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Show uploading state...
+      const container = $('#results-container');
+      container.innerHTML = `
+        <div class="loading" id="loading-state">
+          <div class="loading__spinner"></div>
+          <p class="loading__text">Uploading & extracting features…</p>
+        </div>
+      `;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/upload-necklace', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const n = await res.json();
+        
+        // Add to grid
+        const grid = $('#necklace-grid');
+        const card = document.createElement('div');
+        card.className = 'necklace-card';
+        card.id = `necklace-${n.id}`;
+        card.setAttribute('role', 'radio');
+        card.setAttribute('aria-checked', 'false');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', `Necklace ${n.id}`);
+        card.innerHTML = `
+          <img class="necklace-card__img" src="/images/${n.image_file}" alt="Necklace ${n.id}" loading="lazy">
+          <div class="necklace-card__label">Uploaded</div>
+        `;
+        card.addEventListener('click', () => selectNecklace(n.id));
+        card.addEventListener('keydown', (evt) => {
+          if (evt.key === 'Enter' || evt.key === ' ') {
+            evt.preventDefault();
+            selectNecklace(n.id);
+          }
+        });
+        
+        // Prepend to grid
+        grid.insertBefore(card, grid.firstChild);
+        
+        // Select it automatically
+        selectNecklace(n.id);
+      } catch (err) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="empty-state__icon">⚠️</span>
+            <p class="empty-state__text">Upload failed</p>
+            <p class="empty-state__hint">${err.message}</p>
+          </div>
+        `;
+      }
+      
+      // Reset input
+      e.target.value = '';
+    });
 
     // ===== SELECT NECKLACE & FETCH RECOMMENDATIONS =====
     async function selectNecklace(id) {
