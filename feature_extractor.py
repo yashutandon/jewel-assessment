@@ -9,58 +9,62 @@ visual similarity matching based on high-level patterns and semantics.
 from __future__ import annotations
 
 import numpy as np
-import torch
-import torch.nn as nn
-from torchvision.models import resnet50, ResNet50_Weights
+import onnxruntime as ort
 from PIL import Image
 import logging
 
 logger = logging.getLogger(__name__)
 
+def preprocess_image(img: Image.Image) -> np.ndarray:
+    # Resize to 256x256
+    img = img.resize((256, 256), Image.Resampling.BILINEAR)
+    
+    # Center crop 224x224
+    width, height = img.size
+    new_width, new_height = 224, 224
+    left = (width - new_width) / 2
+    top = (height - new_height) / 2
+    right = (width + new_width) / 2
+    bottom = (height + new_height) / 2
+    img = img.crop((left, top, right, bottom))
+    
+    # Convert to numpy array and scale to [0, 1]
+    img_np = np.array(img).astype(np.float32) / 255.0
+    
+    # Normalize
+    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    img_np = (img_np - mean) / std
+    
+    # HWC to CHW
+    img_np = np.transpose(img_np, (2, 0, 1))
+    
+    return img_np
+
 class DeepFeatureExtractor:
     def __init__(self):
-        logger.info("Loading ResNet50 model (this may take a moment on first run)...")
-        # Load pre-trained ResNet50 with state-of-the-art weights
-        weights = ResNet50_Weights.IMAGENET1K_V2
-        base_model = resnet50(weights=weights)
-        
-        # We don't need the final classification layer (fc), we just want the 2048-dim embeddings
-        # from the AdaptiveAvgPool2d layer right before it.
-        self.model = nn.Sequential(*list(base_model.children())[:-1])
-        
-        # Set to evaluation mode
-        self.model.eval()
-        
-        # Use GPU if available
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = self.model.to(self.device)
-        logger.info(f"Model loaded on {self.device}.")
-        
-        # The standard preprocessing pipeline for ImageNet models
-        self.preprocess = weights.transforms()
+        logger.info("Loading ONNX ResNet50 model...")
+        self.session = ort.InferenceSession("resnet50.onnx")
+        self.input_name = self.session.get_inputs()[0].name
 
-    @torch.no_grad()
     def extract_features(self, image_path: str) -> np.ndarray:
         """
-        Extract the 2048-dimensional semantic embedding for a single image.
+        Extract the 2048-dimensional semantic embedding for a single image using ONNX.
         """
         try:
-            # Convert to RGB (in case of RGBA or Grayscale)
             img = Image.open(image_path).convert('RGB')
         except Exception as e:
             logger.error(f"Failed to load image {image_path}: {e}")
             return np.zeros(2048, dtype=np.float32)
 
-        # Preprocess: Resize, Crop, Normalize
-        tensor = self.preprocess(img).unsqueeze(0).to(self.device)
-        
-        # Forward pass
-        embedding = self.model(tensor)
-        
-        # Squeeze the (1, 2048, 1, 1) tensor to (2048,) and move to CPU numpy array
-        embedding_np = embedding.squeeze().cpu().numpy().astype(np.float32)
-        
-        # L2 Normalize the embedding for Cosine Similarity
+        tensor_np = preprocess_image(img)
+        tensor_np = np.expand_dims(tensor_np, axis=0) # Add batch dimension
+
+        # Run ONNX inference
+        outputs = self.session.run(None, {self.input_name: tensor_np})
+        embedding_np = outputs[0].flatten()
+
+        # L2 Normalize
         norm = np.linalg.norm(embedding_np)
         if norm > 1e-8:
             embedding_np = embedding_np / norm

@@ -3,6 +3,6 @@ uvicorn[standard]
 pydantic-settings
 numpy
 pandas
-torch
-torchvision
+onnxruntime
+pillow
 python-multipart
